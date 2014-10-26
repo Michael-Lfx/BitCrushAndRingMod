@@ -96,19 +96,25 @@
     }];
     [_audioController addFilter:_filter toChannel:_channel];
     
+    // initialize Audiobus controller
     self.audiobusController = [[ABAudiobusController alloc] initWithApiKey:AB_API_KEY];
-    AudioComponentDescription acd;
-    acd.componentManufacturer = 'bwin';
-    acd.componentType = kAudioUnitType_RemoteEffect;
-    acd.componentSubType = 'bcrm';
-    self.filterPort = [[ABFilterPort alloc] initWithName:@"BitCrushRingModFilter" title:@"BitCrushRingMod Filter" audioComponentDescription:acd audioUnit:self.audioController.audioUnit];
-    self.audioController.audiobusFilterPort = self.filterPort;
+    
+    // set up filter port
+    self.filterPort = [[ABFilterPort alloc] initWithName:@"BitCrushRingModFilter" title:@"BitCrushRingMod Filter" audioComponentDescription:(AudioComponentDescription) {
+        .componentType = kAudioUnitType_RemoteEffect,
+        .componentSubType = 'bcrm',
+        .componentManufacturer = 'bwin'
+    } audioUnit:self.audioController.audioUnit];
     [self.audiobusController addFilterPort:self.filterPort];
 
+    // set up receiver port
     self.receiverPort = [[ABReceiverPort alloc] initWithName:@"BitCrushRingModReceiver" title:@"BitCrushRingMod Receiver"];
     self.receiverPort.clientFormat = [AEAudioController nonInterleavedFloatStereoAudioDescription];
-    self.audioController.audiobusReceiverPort = self.receiverPort;
     [self.audiobusController addReceiverPort:self.receiverPort];
+
+    // add Audiobus ports to audio controller
+    self.audioController.audiobusFilterPort = self.filterPort;
+    self.audioController.audiobusReceiverPort = self.receiverPort;
     
     
     return YES;
