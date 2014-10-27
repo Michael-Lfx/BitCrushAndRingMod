@@ -12,7 +12,7 @@
 #import <Accelerate/Accelerate.h>
 #import "Audiobus.h"
 
-#define AB_API_KEY @"MTQxNTQzMDc2OCoqKkJpdENydXNoUmluZ01vZCoqKmJjcm0uYXVkaW9idXM6Ly8=:ASRCO2nwQdkpgnfOUVmADkwMClUA60BeW+jIL9VDSbpRiWqBQ/gLz+80ASFgFZ51vRBFdIshneJvzGsd2Y7qfxqveWYB+nd+FCPXd0gedRJqBVEoIx4/41E39Sditi5U"
+#define AB_API_KEY @"MTQxNTUwODIzNioqKkJpdENydXNoUmluZ01vZCoqKmJjcm0uYXVkaW9idXM6Ly8=:l7Ado8nYk8vsBpgXMFI/yWLjTxhaznLXXOpt/eI0wDPoWD/0gndbToW7t+4D4yvmBchymXc/SeR9Czuaab16x2vZeC47Kym7swFuqRE4aIkwqTwqetrIw7iwIhF5m1dC"
 
 @interface AppDelegate ()
 
@@ -48,17 +48,7 @@
 
     __block float wavePos = 0.0;
     
-    
-    self.filter = [AEBlockFilter filterWithBlock:^(AEAudioControllerFilterProducer producer,
-                                                   void                     *producerToken,
-                                                   const AudioTimeStamp     *time,
-                                                   UInt32                    frames,
-                                                   AudioBufferList          *audio) {
-        // Pull audio
-        OSStatus status = producer(producerToken, audio, &frames);
-        if ( status != noErr ) return;
-        
-        // Now filter audio in 'audio'
+    ABAudioFilterBlock filterBlock = ^(AudioBufferList *audio, UInt32 frames, AudioTimeStamp *timestamp) {
         for (int c=0; c<audio->mNumberBuffers; c++) {
             float *p = (float *)audio->mBuffers[c].mData;
             for (int i=0; i<frames; i++, p++) {
@@ -93,18 +83,31 @@
                 *p = value;
             }
         }
+    };
+    self.filter = [AEBlockFilter filterWithBlock:^(AEAudioControllerFilterProducer producer,
+                                                   void                     *producerToken,
+                                                   const AudioTimeStamp     *time,
+                                                   UInt32                    frames,
+                                                   AudioBufferList          *audio) {
+        // Pull audio
+        OSStatus status = producer(producerToken, audio, &frames);
+        if ( status != noErr ) return;
+        
+        // Now filter audio in 'audio'
+        filterBlock(audio, frames, time);
     }];
-    [_audioController addFilter:_filter toChannel:_channel];
+    [_audioController addFilter:_filter];
     
     // initialize Audiobus controller
     self.audiobusController = [[ABAudiobusController alloc] initWithApiKey:AB_API_KEY];
-    
+
     // set up filter port
     self.filterPort = [[ABFilterPort alloc] initWithName:@"BitCrushRingModFilter" title:@"BitCrushRingMod Filter" audioComponentDescription:(AudioComponentDescription) {
         .componentType = kAudioUnitType_RemoteEffect,
         .componentSubType = 'bcrm',
         .componentManufacturer = 'bwin'
-    } audioUnit:self.audioController.audioUnit];
+    } processBlock:filterBlock processBlockSize:128];
+    self.filterPort.clientFormat = [AEAudioController nonInterleavedFloatStereoAudioDescription];
     [self.audiobusController addFilterPort:self.filterPort];
 
     // set up receiver port
